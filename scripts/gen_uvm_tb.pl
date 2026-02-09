@@ -1,0 +1,265 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $input_file=$ARGV[0];
+
+#chomp($input_file);
+print "$input_file\n";
+my $output_intf_file="output_uvm_tb_top.sv";
+my @input_arr;
+open(FH,"<",$input_file)  or die $!;
+
+print("File $input_file opened successfully!\n");
+open(FOUT,">",$output_intf_file);
+
+print FOUT "package tb_pkg;\n";
+print FOUT "import uvm_pkg::*;\n";
+print FOUT "  `include \"uvm_macros.svh\"\n";
+
+while(<FH>) {
+	if($_=~ /module.*\#.parameter (.*)\)/) {
+		print FOUT "  // -------------------------------------------------\n";
+		print FOUT "  // Global testbench parameters\n";
+        print FOUT "  // -------------------------------------------------\n";
+		#print "$1\n";
+        chomp($1);
+        #if($1=~/(\W+)=.*/)
+        my @parameters_arr=split(/,\s*/,$1);
+		for (my $i=0;$i<@parameters_arr;$i++) {
+		print FOUT "parameter int $parameters_arr[$i];\n";
+		}
+		
+		#print FOUT "parameter $1 (input logic clk);\n";
+	}
+		elsif($_ =~ /.*input\s+(\w+),/) {
+		#print FOUT "logic	$1;\n";
+		
+			push @input_arr,$1;
+		
+	}
+}
+close(FH);
+##printing sequence_item class
+print FOUT "//sequence_item\n";
+print FOUT "class seq_item extends uvm_sequence_item;\n";
+print FOUT "	`uvm_object_utils(seq_item)\n";
+
+for(my $i=0;$i<@input_arr;$i++) {
+		print FOUT "	rand bit $input_arr[$i];\n";
+}
+print FOUT "	function new(string name=\"seq_item\");\n";
+print FOUT "		super.new(name);\n";
+print FOUT "	endfunction\n";
+
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//sequence\n";
+print FOUT "class myseq extends uvm_sequence#(seq_item);\n";
+print FOUT "	`uvm_object_utils(myseq)\n";
+print FOUT "	function new(string name=\"myseq\");\n";
+print FOUT "		super.new(name);\n";
+print FOUT "	endfunction\n";
+print FOUT "	rand int num;\n";
+print FOUT "	constraint c1 { num inside {[10:20]}; }\n";
+print FOUT "	virtual task body();\n";
+print FOUT "		repeat(num)\n";
+print FOUT "			begin\n";
+print FOUT "				seq_item seq_item1;\n";
+print FOUT "				seq_item1=seq_item::type_id::create(\"seq_item1\");\n";
+print FOUT "				start_item(seq_item1);\n";
+print FOUT "				assert(seq_item1.randomize());\n";
+print FOUT "				finish_item(seq_item1);\n";
+print FOUT "			end\n";
+print FOUT "	endtask\n";
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//Sequencer\n";
+print FOUT "class seqr extends uvm_sequencer#(seq_item);\n";
+print FOUT "	`uvm_component_utils(seqr)\n";
+print FOUT "	function new(string name=\"seqr\",uvm_component parent);\n";
+print FOUT "		super.new(name,parent);\n";
+print FOUT "	endfunction\n";
+print FOUT "	virtual function void build_phase(uvm_phase phase);\n";
+print FOUT "		super.build_phase(phase);\n";
+print FOUT "	endfunction\n";
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//driver\n";
+print FOUT "class driver extends uvm_driver#(seq_item);\n";
+print FOUT "	`uvm_component_utils(driver)\n";
+print FOUT "	virtual intf vif;\n";
+print FOUT "	function new(string name=\"driver\",uvm_component parent);\n";
+print FOUT "		super.new(name,parent);\n";
+print FOUT "	endfunction\n";
+print FOUT "	function void build_phase(uvm_phase phase);\n";
+print FOUT "		super.build_phase(phase);\n";
+print FOUT "		if(! uvm_config_db#(virtual intf)::get(this,\"\",\"vif\",vif)) \n";
+print FOUT "			`uvm_error(get_type_name(),\"Error get virtual intf Failed\\n\");\n";
+print FOUT "	endfunction\n";
+print FOUT "	task run_phase(uvm_phase phase);\n";
+print FOUT "		super.run_phase(phase);\n";
+print FOUT "		forever begin\n";
+print FOUT "		seq_item seq_item1;\n";
+print FOUT "		seq_item1=seq_item::type_id::create(\"seq_item1\",this);\n";
+print FOUT "		seq_item_port.get_next_item(seq_item1);\n";
+print FOUT "		drive_signals(seq_item1);\n";
+print FOUT "		seq_item_port.item_done();\n";
+print FOUT "		end\n";
+print FOUT "	endtask\n";
+print FOUT "\n";
+print FOUT "	task drive_signals(seq_item seq_item1);\n";
+print FOUT "//WRITE YOUR DRIVER LOGIC HERE\n";
+print FOUT "	endtask\n";
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//monitor\n";
+print FOUT "class monitor extends uvm_monitor;\n";
+print FOUT "	`uvm_component_utils(monitor)\n";
+print FOUT "	virtual intf vif;\n";
+print FOUT "	uvm_analysis_port#(seq_item) a_port;\n";
+print FOUT "	function new ( string name=\"monitor\", uvm_component parent);\n";
+print FOUT "		super.new(name,parent);\n";
+print FOUT "		a_port=new(\"a_port\",this);\n";
+print FOUT "	endfunction\n";
+print FOUT "	function void build_phase(uvm_phase phase);\n";
+print FOUT "		super.build_phase(phase);\n";
+print FOUT "		if(! uvm_config_db#(virtual intf)::get(this,\"\",\"vif\",vif)) \n";
+print FOUT "			`uvm_error(get_type_name(),\"Error get virtual intf Failed\\n\");\n";
+print FOUT "	endfunction\n";
+print FOUT "	task run_phase(uvm_phase phase);\n";
+print FOUT "		forever begin\n";
+print FOUT "			seq_item seq_item1;\n";
+print FOUT "			seq_item1=seq_item::type_id::create(\"seq_item1\",this);\n";
+print FOUT "			@(posedge vif.clk);\n";
+print FOUT "			//monitor signals\n";
+print FOUT "			a_port.write(seq_item1);\n";
+print FOUT "		end\n";
+print FOUT "	endtask\n";
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//Agent\n";
+print FOUT "class agent extends uvm_agent;\n";
+print FOUT "	`uvm_component_utils(agent)\n";
+print FOUT "	seqr seqr1;\n";
+print FOUT "	driver driver1;\n";
+print FOUT "	monitor monitor1;\n";
+print FOUT "	function new(string name=\"agent\", uvm_component parent);\n";
+print FOUT "		super.new(name,parent);\n";
+print FOUT "	endfunction\n";
+print FOUT "	function void build_phase(uvm_phase phase);\n";
+print FOUT "		super.build_phase(phase);\n";
+print FOUT "		if(get_is_active()==UVM_ACTIVE) begin\n";
+print FOUT "			seqr1=seqr::type_id::create(\"seqr\",this);\n";
+print FOUT "			driver1=driver::type_id::create(\"driver\",this);\n";
+print FOUT "		end\n";
+print FOUT "		monitor1=monitor::type_id::create(\"monitor1\",this);		\n";
+print FOUT "	endfunction\n";
+print FOUT "	function void connect_phase(uvm_phase phase);\n";
+print FOUT "		super.connect_phase(phase);\n";
+print FOUT "		driver1.seq_item_port.connect(seqr1.seq_item_export);\n";
+print FOUT "	endfunction\n";
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//scoreboard\n";
+print FOUT "class scoreboard extends uvm_scoreboard;\n";
+print FOUT "	`uvm_component_utils(scoreboard)\n";
+print FOUT "	uvm_analysis_imp#(seq_item, scoreboard) a_imp;\n";
+print FOUT "	function new(string name=\"scoreboard\",uvm_component parent);\n";
+print FOUT "		super.new(name,parent);\n";
+print FOUT "	endfunction\n";
+print FOUT "	function void build_phase(uvm_phase phase);\n";
+print FOUT "		super.build_phase(phase);\n";
+print FOUT "		a_imp=new(\"a_imp\",this);\n";
+print FOUT "	endfunction\n";
+print FOUT "    virtual function void write(seq_item seq_item1);\n";
+print FOUT "		//SCOREBOARD LOGIC\n";
+print FOUT "	endfunction	\n";
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//env\n";
+print FOUT "class env extends uvm_env;\n";
+print FOUT "	`uvm_component_utils(env)\n";
+print FOUT "	scoreboard scoreboard1;\n";
+print FOUT "	agent agent1;\n";
+print FOUT "	function new(string name=\"env\",uvm_component parent);\n";
+print FOUT "		super.new(name,parent);\n";
+print FOUT "	endfunction\n";
+print FOUT "	function void build_phase(uvm_phase phase);	\n";
+print FOUT "		super.build_phase(phase);\n";
+print FOUT "		agent1=agent::type_id::create(\"agent1\",this);\n";
+print FOUT "		scoreboard1=scoreboard::type_id::create(\"scoreboard1\",this);\n";
+print FOUT "	endfunction	\n";
+print FOUT "	function void connect_phase(uvm_phase phase);\n";
+print FOUT "		super.connect_phase(phase);\n";
+print FOUT "		agent1.monitor1.a_port.connect(scoreboard1.a_imp);\n";
+print FOUT "	endfunction	\n";
+print FOUT "endclass\n";
+print FOUT "\n";
+print FOUT "//test\n";
+print FOUT "class basic_test extends uvm_test;\n";
+print FOUT "	`uvm_component_utils(basic_test)\n";
+print FOUT "	env env1;\n";
+print FOUT "	function new(string name=\"basic_test\",uvm_component parent);\n";
+print FOUT "		super.new(name,parent);\n";
+print FOUT "	endfunction\n";
+print FOUT "	function void build_phase(uvm_phase phase);	\n";
+print FOUT "		super.build_phase(phase);\n";
+print FOUT "		env1=env::type_id::create(\"env1\",this);\n";
+print FOUT "	endfunction	\n";
+print FOUT "	task run_phase(uvm_phase phase);\n";
+print FOUT "		myseq myseq1;\n";
+print FOUT "		phase.raise_objection(\"this\");\n";
+print FOUT "		myseq1=myseq::type_id::create(\"myseq1\",this);\n";
+print FOUT "		myseq1.start(env1.agent1.seqr1);\n";
+print FOUT "		phase.drop_objection(\"this\");	\n";
+print FOUT "    endtask\n";
+print FOUT "endclass\n";
+print FOUT "endpackage\n";
+print FOUT "\n";
+print FOUT "`timescale 1ns/1ps\n";
+print FOUT "import uvm_pkg::*;\n";
+print FOUT "import tb_pkg::*;\n";
+print FOUT "`include \"uvm_macros.svh\"\n";
+print FOUT "\n";
+print FOUT "//tb_top\n";
+print FOUT "module tb_top;\n";
+print FOUT "\n";
+print FOUT "//clock\n";
+print FOUT "logic clk;\n\n";
+print FOUT "// Interface\n";
+print FOUT "intf vif (clk);\n";
+print FOUT "\n";
+print FOUT "//DUT INSTANCE\n";
+print FOUT "\n";
+print FOUT "// Clock generation\n";
+print FOUT "  initial begin\n";
+print FOUT "    clk = 0;\n";
+print FOUT "    forever #5 clk = ~clk;   // 100 MHz\n";
+print FOUT "  end\n";
+print FOUT "\n";
+print FOUT "//Reset generation\n";
+print FOUT "\n";
+print FOUT "  // UVM configuration and test start\n";
+print FOUT "  initial begin\n";
+print FOUT "    // Make virtual interface visible to UVM\n";
+print FOUT "    uvm_config_db#(virtual intf)::set(null, \"*\", \"vif\", vif);\n";
+print FOUT "    // Start UVM\n";
+print FOUT "    run_test(\"test\");  \n";
+print FOUT "  end\n";
+print FOUT "\n";
+print FOUT "  initial begin\n";
+print FOUT "    \$dumpvars;\n";
+print FOUT "    \$dumpfile (\"dump.vcd\");\n";
+print FOUT "  end\n";
+print FOUT "initial begin\n";
+print FOUT "  #1000;\n";
+print FOUT "  \$finish;\n";
+print FOUT "end  \n";
+print FOUT "\n";
+print FOUT "endmodule\n";
+print FOUT "\n";
+print FOUT "\n";
+close(FOUT);
+		
+				
